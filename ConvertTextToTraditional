@@ -1,0 +1,101 @@
+Sub ConvertTextToTraditional()
+    Dim wordApp As Object
+    Dim wordDoc As Object
+    Dim selection As Object
+    Dim acadDoc As AcadDocument
+    Dim acadText As acadText
+    Dim acadMText As acadMText
+    Dim ent As AcadEntity
+    Dim inputText As String
+    Dim convertedText As String
+    Dim pickPoint As Variant
+    
+    ' 获取当前 AutoCAD 文档
+    Set acadDoc = ThisDrawing
+    
+    ' 提示用户选择文本对象
+    On Error Resume Next
+    acadDoc.Utility.GetEntity ent, pickPoint, "选择文本对象："
+    On Error GoTo 0
+    
+    If ent Is Nothing Then
+        MsgBox "未选择对象，操作取消。", vbExclamation
+        Exit Sub
+    End If
+    
+    ' 检查所选对象是否为文本或多行文本
+    If TypeOf ent Is acadText Then
+        Set acadText = ent
+        inputText = acadText.TextString
+    ElseIf TypeOf ent Is acadMText Then
+        Set acadMText = ent
+        inputText = acadMText.TextString
+    Else
+        MsgBox "所选对象不是文本或多行文本，操作取消。", vbExclamation
+        Exit Sub
+    End If
+    
+    ' 创建 Word 应用程序对象
+    On Error Resume Next
+    Set wordApp = CreateObject("Word.Application")
+    If wordApp Is Nothing Then
+        MsgBox "无法创建 Word 应用程序对象，请确保已安装 Microsoft Word。", vbCritical
+        Exit Sub
+    End If
+    On Error GoTo 0
+    
+    ' 设置 Word 不可见
+    wordApp.Visible = False
+    
+    ' 创建新文档
+    Set wordDoc = wordApp.Documents.Add
+    If wordDoc Is Nothing Then
+        MsgBox "无法创建 Word 文档。", vbCritical
+        wordApp.Quit
+        Exit Sub
+    End If
+    
+    ' 插入文本
+    wordDoc.Content.Text = inputText
+    
+    ' 选择整个文档内容
+    wordDoc.Content.Select
+    
+    ' 获取选择对象
+    Set selection = wordApp.selection
+    If selection Is Nothing Then
+        MsgBox "无法选择文本。", vbCritical
+        wordDoc.Close False
+        wordApp.Quit
+        Exit Sub
+    End If
+    
+    ' 设置语言为简体中文
+    selection.LanguageID = 1028 ' 2052 是简体中文的语言 ID
+
+
+    ' 执行简繁转换
+    'wdTCSCConverterDirectionTCSC 修改为这个值可以转换为简体
+    selection.Range.TCSCConverter _
+        WdTCSCConverterDirection:=wdTCSCConverterDirectionSCTC, _
+        CommonTerms:=True, _
+        UseVariants:=False
+    
+    ' 获取转换后的文本
+    convertedText = selection.Text
+    
+    ' 关闭文档并退出 Word
+    wordDoc.Close False
+    wordApp.Quit
+    
+    ' 更新 AutoCAD 中的文本内容
+    If TypeOf ent Is acadText Then
+        acadText.TextString = convertedText
+    ElseIf TypeOf ent Is acadMText Then
+        acadMText.TextString = convertedText
+    End If
+    
+    ' 提示用户转换完成
+    'MsgBox "文本已成功转换成功。", vbInformation
+End Sub
+
