@@ -1,0 +1,117 @@
+Sub ConvertMultipleTextToSimplified()
+    Dim wordApp As Object
+    Dim wordDoc As Object
+    Dim selection As Object
+    Dim acadDoc As AcadDocument
+    Dim acadText As acadText
+    Dim acadMText As acadMText
+    Dim ent As AcadEntity
+    Dim inputText As String
+    Dim convertedText As String
+    Dim ss As AcadSelectionSet
+    Dim i As Integer
+    
+    ' 获取当前 AutoCAD 文档
+    Set acadDoc = ThisDrawing
+    
+    ' 创建选择集
+    On Error Resume Next
+    acadDoc.SelectionSets("TempSelectionSet").Delete
+    On Error GoTo 0
+    Set ss = acadDoc.SelectionSets.Add("TempSelectionSet")
+    
+    ' 提示用户选择多个文本对象
+    ThisDrawing.Utility.Prompt "请选择文本或多行文本对象：" & vbCrLf
+    
+    
+    
+    ' 使用 SelectOnScreen 方法选择对象
+    ss.SelectOnScreen
+    
+    ' 检查是否选择了对象
+    If ss.Count = 0 Then
+        MsgBox "未选择对象，操作取消。", vbExclamation
+        Exit Sub
+    End If
+    
+    ' 创建 Word 应用程序对象
+    On Error Resume Next
+    Set wordApp = CreateObject("Word.Application")
+    If wordApp Is Nothing Then
+        MsgBox "无法创建 Word 应用程序对象，请确保已安装 Microsoft Word。", vbCritical
+        Exit Sub
+    End If
+    On Error GoTo 0
+    
+    ' 设置 Word 不可见
+    wordApp.Visible = False
+    
+    ' 创建新文档
+    Set wordDoc = wordApp.Documents.Add
+    If wordDoc Is Nothing Then
+        MsgBox "无法创建 Word 文档。", vbCritical
+        wordApp.Quit
+        Exit Sub
+    End If
+    
+    ' 遍历选择集中的每个对象
+    For i = 0 To ss.Count - 1
+        Set ent = ss.Item(i)
+        
+        ' 检查所选对象是否为文本或多行文本
+        If TypeOf ent Is acadText Then
+            Set acadText = ent
+            inputText = acadText.TextString
+        ElseIf TypeOf ent Is acadMText Then
+            Set acadMText = ent
+            inputText = acadMText.TextString
+        Else
+            MsgBox "所选对象包含非文本对象，已跳过。", vbExclamation
+            GoTo ContinueLoop
+        End If
+        
+        ' 插入文本到 Word 文档
+        wordDoc.Content.Text = inputText
+        
+        ' 选择整个文档内容
+        wordDoc.Content.Select
+        
+        ' 获取选择对象
+        Set selection = wordApp.selection
+        If selection Is Nothing Then
+            MsgBox "无法选择文本。", vbCritical
+            GoTo ContinueLoop
+        End If
+        
+        ' 设置语言为简体中文
+        selection.LanguageID = 2052 ' 2052 是简体中文的语言 ID
+        
+        ' 执行简繁转换
+        selection.Range.TCSCConverter _
+            WdTCSCConverterDirection:=wdTCSCConverterDirectionSCTC, _
+            CommonTerms:=True, _
+            UseVariants:=False
+        
+        ' 获取转换后的文本
+        convertedText = selection.Text
+        
+        ' 更新 AutoCAD 中的文本内容
+        If TypeOf ent Is acadText Then
+            acadText.TextString = convertedText
+        ElseIf TypeOf ent Is acadMText Then
+            acadMText.TextString = convertedText
+        End If
+        
+ContinueLoop:
+        ' 清空 Word 文档内容以准备下一个文本
+        wordDoc.Content.Text = ""
+    Next i
+    
+    ' 关闭文档并退出 Word
+    wordDoc.Close False
+    wordApp.Quit
+    
+    ' 提示用户转换完成
+    MsgBox "所有文本已成功转换为简体中文。", vbInformation
+End Sub
+
